@@ -1,0 +1,73 @@
+seed: 1
+record_video: true
+device: "cuda"
+
+environment:
+  render: True
+  num_envs: 200
+  num_threads: 40
+  seed: 1
+  simulation_dt: 0.005
+  control_dt: 0.02
+  max_time: 6.0
+  torqueRewardCoeff: -2e-5
+  targetFollowingRewardCoeff: 30.0
+  actionSmoothnessRewardCoeff: -4e-1
+  bodyOrientationRewardCoeff: 5.0
+  symmetryRewardCoeff: 0. # -0.4
+  footClearanceRewardCoeff: 1.0
+  gaitFollowingRewardCoeff: 3.0
+  verticalVelocityRewardCoeff: 3.0
+  bodyRatesRewardCoeff: 3.0
+  bodyHeightRewardCoeff: 5.0
+  internalContactRewardCoeff: -1.0
+  jointVelocityRewardCoeff: -1e-3
+  normalize_obs: False
+  normalize_rwd: False
+  raisim_activation_key: "/home/nico/msc_thesis_ethz/workspace/raisimGym/raisim_gym/env/activation.raisim"
+  bodyHeightTarget: 0.48
+  bufferLength: 10
+  bufferStride: 1
+
+  target:
+    randomize_velocity: 1
+    x: [-1.0, 1.0] # [m/s]
+    y: [-0.5, 0.5] # [m/s]
+    yaw: [-0.7, 0.7] # [m/s]
+    x_fixed: 1.0 # static target velocity for ANYmal to follow
+    y_fixed: 0.5
+    yaw_fixed: 0.7
+
+  gait_params:
+    default: # trotting
+      swing_start: [0.0, 0.5, 0.5, 0.0] # LF, RF, LH, RH [s]
+      swing_duration: [0.5, 0.5, 0.5, 0.5] # [s]
+      stride: 0.2
+
+  terrain:
+    frequency: 0.05
+    zScale: 3.0
+    xSize: 40.0
+    ySize: 40.0
+    xSamples: 200
+    ySamples: 200
+    fractalOctaves: 3
+    fractalLacunarity: 2.0
+    fractalGain: 0.05
+
+  architecture:
+    policy: [256, 128]
+    value_net: [256, 128]
+    init_scale: 0.1
+    activation: "Tanh"
+
+  algorithm:
+    minibatch: 2
+    epoch: 4
+    gamma: 0.99
+    lambda: 0.95
+    entropy_coeff: 0.0
+    learning_rate: 5e-4
+    clip_param: 0.2
+    curriculum_param: 0.998
+    intial_factor: 0.001
