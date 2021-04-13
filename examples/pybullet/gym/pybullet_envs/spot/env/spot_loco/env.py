@@ -56,6 +56,22 @@ class SpotBulletEnv(gym.Env):
         self.action_history = np.zeros((self.spot.ACTION_DIM*3,))
         self.err_prev = np.zeros((self.spot.N_JOINTS,))
         self.err_curr = np.zeros((self.spot.N_JOINTS,))
+        self.body_linear_vel_ = np.zeros((3,))
+        self.body_angular_vel_ = np.zeros((3,))
+        self.target_vel_ = np.zeros((3,))
+
+        self.gait_params_ = {
+            "stride" : 0.6,
+            "max_foot_height" : 0.08,
+            "phase" : 0.,
+            "swing_start" : [0., 0.5, 0.5, 0.],
+            "swing_duration" : [0.5, 0.5, 0.5, 0.5],
+            "phase_time_left" : [1., 1., 1., 1.],
+            "foot_target" : [0.08, 0.08, 0.08, 0.08],
+            "foot_position" : [0., 0., 0., 0.],
+            "is_stance_gait" : False,
+            "desired_contact_states" : [True, True, True, True]
+        }
 
     def _configure(self, display=None):
         self.display = display
@@ -109,7 +125,32 @@ class SpotBulletEnv(gym.Env):
 
     def update_observation(self):
         gc, gv = self.spot.get_state()
+        foot_contacts = self.spot.get_foot_contacts()
 
+        obs_unscaled = np.zeros((self.spot.OB_DIM,)); pos = 0
+
+        # body orientation
+        rot_mat = self._p.getMatrixFromQuaternion(gc[3:7])
+        obs_unscaled[pos:pos+3] = rot_mat[-1]; pos += 3
+        rot_mat = np.array(rot_mat).reshape((3, -1))
+
+        # joint angles
+        obs_unscaled[pos:pos+self.spot.N_JOINTS] = gc[-self.spot.N_JOINTS:]; pos += self.spot.N_JOINTS
+
+        # body velocities
+        self.body_linear_vel_ = np.matmul(rot_mat.transpose(), gv[:3, np.newaxis])[:]
+        self.body_angular_vel_ = np.matmul(rot_mat.transpose(), gv[3:6, np.newaxis])[:]
+        obs_unscaled[pos:pos+3] = self.body_linear_vel_; pos += 3
+        obs_unscaled[pos:pos+3] = self.body_angular_vel_; pos += 3
+
+        # joint velocities
+        obs_unscaled[pos:pos+self.spot.N_JOINTS] = gv[-self.spot.N_JOINTS:]; pos += self.spot.N_JOINTS
+
+        # target velocity
+        obs_unscaled[pos:pos+3] = self.target_vel_; pos += 3
+
+        # action history
+        obs_unscaled
 
         return
 
@@ -121,7 +162,8 @@ class SpotBulletEnv(gym.Env):
     
 class ArticulatedSystem:
     def __init__(self, p, cfg):
-
+        
+        self.p = p
         self.spot = p.loadURDF(cfg["urdf"], [0., 0., 0.])
         self.N_JOINTS = p2.getNumJoints(self._spot)
         self.GC_DIM = self.N_JOINTS + 6 # number of joints + base x, y, z, r, p, y
@@ -209,9 +251,12 @@ class ArticulatedSystem:
             "joint_velocity" : cfg["environment"]["jointVelocityRewardCoeff"],
         }
 
+        self.FOOT_INDICES = [2, 5, 8, 11]
+
         self.gc_ = np.zeros((self.GC_DIM,))
         self.gv_ = np.zeros((self.GV_DIM,))
         self.gf_ = np.zeros((self.GV_DIM,))
+        self.foot_contacts = np.array([True] * 4, dtype=bool)
 
         
     def unscale_action(self, scaled_action):
@@ -223,5 +268,27 @@ class ArticulatedSystem:
         return np.divide(unscaled_observation - self.OB_MEAN, self.OB_STD)
 
     def get_state(self):
+        """
+        Get the generalized coordinates, generalized velocities, generalized forces for Spot
+        """
 
-        return
+        for i in range(self.spot.N_JOINTS):
+            self.gv_[6+i], self.gc_[7+i] = self.p.getJointState(self.spot, i)
+        lin_vel, ang_vel = self.p.getBaseVelocity(self.spot)
+        self.gv_[:3] = np.array(lin_vel)
+        self.gv_[3:6] = np.array(ang_vel)
+
+        base_pos, base_orientation = self.p.getBasePositionAndOrientation(self.quadruped)
+        self.gc_[:3] = np.array(base_pos)
+        self.gc_[3:7] = np.array(base_orientation)
+
+        return self.gc_.copy(), self.gv_.copy()
+
+    def get_foot_contacts(self):
+
+        for i in range(4):
+            if self.p.getContactPoints(self.spot, -1, self.FOOT_INDICES[i]):
+                self.foot_contacts[i] = True
+
+        return self.foot_contacts.copy()
+
