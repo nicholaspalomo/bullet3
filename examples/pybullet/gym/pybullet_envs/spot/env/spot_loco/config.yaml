@@ -1,6 +1,7 @@
 seed: 1
 record_video: true
 device: "cuda"
+urdf: "spot_description/spot.urdf"
 
 environment:
   render: True
@@ -24,7 +25,6 @@ environment:
   jointVelocityRewardCoeff: -1e-3
   normalize_obs: False
   normalize_rwd: False
-  raisim_activation_key: "/home/nico/msc_thesis_ethz/workspace/raisimGym/raisim_gym/env/activation.raisim"
   bodyHeightTarget: 0.48
   bufferLength: 10
   bufferStride: 1
